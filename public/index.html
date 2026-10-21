@@ -1,0 +1,87 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone-Intel | Public Demo</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1120;--panel:#131d30;--line:#283750;--text:#e8eef9;--muted:#9aabc3;--accent:#76a9ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px system-ui,sans-serif}
+main{max-width:1050px;margin:auto;padding:28px 16px 60px}
+header{margin-bottom:25px}
+h1{font-size:clamp(28px,5vw,42px);margin-bottom:8px}
+p{color:var(--muted);line-height:1.6}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin:16px 0}
+.notice{background:#202d43;border-radius:9px;padding:13px;line-height:1.6}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.item{border:1px solid var(--line);border-radius:9px;padding:14px}
+.label{color:var(--muted);font-size:12px;text-transform:uppercase}
+.value{font-weight:650;margin-top:8px}
+input,button{font:inherit;border-radius:9px;padding:12px}
+input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);margin:10px 0}
+button{border:0;background:var(--accent);color:#071328;font-weight:700;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid white;outline-offset:3px}
+.tag{display:inline-block;padding:5px 9px;border-radius:20px;background:#243a33;color:#a8f0ce;font-size:12px}
+footer{color:var(--muted);font-size:13px;margin-top:28px}
+</style>
+</head>
+<body>
+<main>
+<header>
+<span class="tag">PUBLIC DEMO - SAMPLE DATA ONLY</span>
+<h1>Phone-Intel</h1>
+<p>Phone-number intelligence dashboard interface preview.</p>
+</header>
+
+<section class="panel">
+<h2>Number Overview</h2>
+<p>This is a visual demonstration. No real lookup is performed.</p>
+<form id="demoForm">
+<label for="number">Demo phone number</label>
+<input id="number" placeholder="Example: +91 XXXXX XXXXX" autocomplete="off">
+<button type="submit">Preview Demo</button>
+</form>
+<div id="demoNotice" class="notice" role="status">Ready. Enter a sample value to preview the interface.</div>
+</section>
+
+<section class="panel">
+<h2>Number Details</h2>
+<div class="grid">
+<div class="item"><div class="label">Country</div><div class="value">Demo only</div></div>
+<div class="item"><div class="label">Number validity</div><div class="value">Not checked</div></div>
+<div class="item"><div class="label">Carrier</div><div class="value">Not available</div></div>
+<div class="item"><div class="label">Live location</div><div class="value">Not available</div></div>
+</div>
+</section>
+
+<section class="panel">
+<h2>Cell Timeline</h2>
+<p>Illustrative section for authorized, locally supplied cell observations.</p>
+<div class="notice">No cell records are loaded in this public demo.</div>
+</section>
+
+<section class="panel">
+<h2>Public References</h2>
+<p>This demo does not search the web or submit phone numbers to third parties.</p>
+</section>
+
+<section class="panel">
+<h2>Recent Call Data</h2>
+<p>Imported call records, investigation databases, and private telecom data are not available in this public demo.</p>
+</section>
+
+<footer>Phone-Intel public interface preview. No real analysis, tracking, or data collection is performed.</footer>
+</main>
+<script>
+document.getElementById("demoForm").addEventListener("submit",event=>{
+event.preventDefault();
+const input=document.getElementById("number");
+const notice=document.getElementById("demoNotice");
+notice.textContent=input.value.trim()
+?"Demo mode only: no lookup was performed and the value was not sent to a server."
+:"Enter a sample value to preview the interface.";
+});
+</script>
+</body>
+</html>
