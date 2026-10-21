@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -504,6 +505,8 @@ def health():
 
 @app.post("/api/recent-calls/import")
 async def import_authorized_recent_calls(payload: dict):
+    if os.getenv("PHONE_INTEL_PUBLIC_DEMO", "false").lower() == "true":
+        raise HTTPException(403, "Call-log import is disabled on the public demo.")
     import csv
     import io
     from pathlib import Path
@@ -567,6 +570,8 @@ async def get_authorized_recent_calls(
     start: str = "",
     end: str = ""
 ):
+    if os.getenv("PHONE_INTEL_PUBLIC_DEMO", "false").lower() == "true":
+        raise HTTPException(403, "Call-log retrieval is disabled on the public demo.")
     import csv
     from pathlib import Path
     from datetime import datetime, timedelta
