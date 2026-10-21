@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local secrets and configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Databases and local data
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Backups
+*.backup*
+*.bak*
+*.before*
+*.old
+
+# Local tooling
+.vscode/
+.idea/
