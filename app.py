@@ -237,9 +237,10 @@ function field(container, key, value) {
   container.append(item);
 }
 
-$("search").addEventListener("submit", async e => {
+let selectedPhoneNumber = "";\n\n$("search").addEventListener("submit", async e => {
   e.preventDefault();
   const number = $("number").value.trim();
+  selectedPhoneNumber = number;
   $("submit").disabled = true;
   $("status").textContent = "Running local CLI analysis…";
   try {
@@ -274,6 +275,7 @@ $("search").addEventListener("submit", async e => {
 
 
 async function startInvestigation() {
+  selectedPhoneNumber = $("number").value.trim();
   const button = $("investigate");
   const progress = $("investigationProgress");
   const box = $("investigationSources");
@@ -331,7 +333,10 @@ async function loadTimeline() {
   $("dbsummary").textContent = "Reading local databases…";
   $("records").textContent = "";
   try {
-    const r = await fetch("/api/timeline");
+    const timelineUrl = selectedPhoneNumber
+      ? "/api/timeline?number=" + encodeURIComponent(selectedPhoneNumber)
+      : "/api/timeline";
+    const r = await fetch(timelineUrl);
     const data = await r.json();
     if (!r.ok) throw Error(data.detail || "Read failed");
     data.records.sort((a, b) =>
@@ -346,8 +351,14 @@ async function loadTimeline() {
       summary.append(item);
     });
     if (!data.records.length) {
-      $("records").textContent = "No local cell observations found.";
+      $("records").textContent = data.note || "No local cell observations found.";
       return;
+    }
+    if (data.note) {
+      const note = document.createElement("p");
+      note.className = "muted";
+      note.textContent = data.note;
+      $("records").append(note);
     }
     const table = document.createElement("table");
     const headers = ["Database","Table","Observed at","Radio","MCC","MNC",
@@ -403,18 +414,91 @@ loadTimeline();
   <input id="callEnd" type="datetime-local"
     style="display:block;margin:6px 0 12px;max-width:100%">
 
-  <p>If both date/time fields are blank, the last 24 hours are shown.
+  <p>If both date/time fields are blank, the last 48 hours are shown.
   If using a custom range, fill both fields.</p>
 
   <button type="button" id="searchCalls">Apply filters</button>
   <button type="button" id="resetCallFilters">Reset to last 48 hours</button>
-  <pre id="callResults"
-    style="white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px"></pre>
+  <div id="callResults"
+    style="overflow-wrap:anywhere;margin-top:12px"></div>
 
   <script>
   (() => {
     const $ = id => document.getElementById(id);
     const out = $('callResults');
+
+    function renderCallResults(data) {
+      out.replaceChildren();
+
+      const summary = document.createElement('p');
+      const filters = data.filters || {};
+      summary.textContent =
+        'Records: ' + (data.count ?? (data.records || []).length) +
+        ' | Filter: ' + (filters.mode || 'unknown') +
+        ' | From: ' + (filters.start || '—') +
+        ' | To: ' + (filters.end || '—');
+      out.append(summary);
+
+      if (data.note) {
+        const note = document.createElement('p');
+        note.textContent = data.note;
+        out.append(note);
+      }
+
+      const records = Array.isArray(data.records) ? data.records : [];
+      if (!records.length) {
+        const empty = document.createElement('p');
+        empty.textContent = 'No call records found for this date range.';
+        out.append(empty);
+        return;
+      }
+
+      const wrap = document.createElement('div');
+      wrap.style.overflowX = 'auto';
+
+      const table = document.createElement('table');
+      const columns = [
+        ['timestamp', 'Call date/time'],
+        ['phone_number', 'Phone number'],
+        ['call_type', 'Call type'],
+        ['duration_seconds', 'Duration (seconds)'],
+        ['contact_name', 'Contact name'],
+        ['source', 'Source'],
+        ['imported_at', 'Imported at']
+      ];
+
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      columns.forEach(([, label]) => {
+        const th = document.createElement('th');
+        th.textContent = label;
+        headerRow.append(th);
+      });
+      thead.append(headerRow);
+      table.append(thead);
+
+      const tbody = document.createElement('tbody');
+      records.forEach(record => {
+        const tr = document.createElement('tr');
+        columns.forEach(([key]) => {
+          const td = document.createElement('td');
+          td.textContent = record[key] == null || record[key] === ''
+            ? '—' : String(record[key]);
+          tr.append(td);
+        });
+        tbody.append(tr);
+      });
+
+      table.append(tbody);
+      wrap.append(table);
+      out.append(wrap);
+
+      if (data.truncated) {
+        const warning = document.createElement('p');
+        warning.textContent = 'Showing the first 500 matching records.';
+        out.append(warning);
+      }
+    }
 
     $('importCalls').addEventListener('click', async () => {
       out.textContent = 'Importing...';
@@ -457,7 +541,8 @@ loadTimeline();
 
         const res = await fetch('/api/recent-calls?' + params.toString());
         const data = await res.json();
-        out.textContent = JSON.stringify(data, null, 2);
+        if (!res.ok) throw Error(data.detail || 'Call search failed');
+        renderCallResults(data);
       } catch (e) {
         out.textContent = 'Search failed: ' + e.message;
       }
@@ -625,10 +710,8 @@ async def get_authorized_recent_calls(
         mode = "custom_range"
     else:
         end_dt = local_now
-        start_dt = end_dt.replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-        mode = "today_local"
+        start_dt = end_dt - timedelta(hours=48)
+        mode = "last_48_hours"
 
     wanted = "".join(c for c in number if c.isdigit())
     if not path.exists():
@@ -731,7 +814,7 @@ def readonly_connect(path):
     return sqlite3.connect(uri, uri=True, timeout=3)
 
 @app.get("/api/timeline")
-def timeline():
+def timeline(number: str | None = None):
     statuses, records = [], []
     for label, path in DATABASES.items():
         if not path.is_file():
@@ -802,36 +885,41 @@ def timeline():
         except sqlite3.Error as exc:
             statuses.append({"name": label, "status": "read error: " + str(exc), "count": 0})
 
-    # Rolling 48-hour window, recalculated on every timeline request.
-    from datetime import datetime, timedelta, timezone
+    # Show the most recently observed existing records, regardless of age.
+    # Preserve all available columns and sort newest first.
+    from datetime import datetime, timezone
 
-    now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(hours=48)
-
-    def within_last_48_hours(value):
-        if not value:
-            return False
+    def sort_timestamp(record):
+        value = str(record.get("observed_at") or "").strip()
         try:
-            stamp = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+            stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
             if stamp.tzinfo is None:
                 stamp = stamp.replace(tzinfo=timezone.utc)
-            stamp = stamp.astimezone(timezone.utc)
-            return cutoff <= stamp <= now
+            return stamp.timestamp()
         except (ValueError, TypeError, OverflowError):
-            return False
+            return float("-inf")
 
-    records = [
-        record for record in records
-        if within_last_48_hours(record.get("observed_at"))
-    ]
-    records.sort(key=lambda r: str(r.get("observed_at") or ""), reverse=True)
+    records.sort(key=sort_timestamp, reverse=True)
+
+    # The current cell databases contain tower/cell metadata, not a
+    # verified association between a phone number and a cell record.
+    if number and number.strip():
+        return {
+            "number": number.strip(),
+            "databases": statuses,
+            "records": [],
+            "note": (
+                "No phone-number-linked cell records are available. "
+                "The local databases contain cell/tower observations but "
+                "do not establish that any record belongs to this number. "
+                "Unrelated tower records are intentionally not displayed."
+            ),
+        }
 
     return {
         "databases": statuses,
         "records": records[:500],
-        "note": "Showing records observed in the last 48 hours (rolling window). Cell records are not linked to the submitted phone number.",
-        "window_start": cutoff.isoformat(),
-        "window_end": now.isoformat(),
+        "note": "Local cell inventory, newest observed first. These records are not linked to a submitted phone number.",
     }
 
 @app.get("/api/investigation")
